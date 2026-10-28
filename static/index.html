@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#040b13"><meta name="description" content="CONFLUX CORE — One reactor. Four minds. Play a real-time cooperative sci-fi puzzle with friends.">
+<title>CONFLUX CORE | One Reactor. Four Minds.</title>
+<link rel="stylesheet" href="/static/style.css">
+<script defer src="/static/fallback.js"></script><script defer src="/static/scene.js"></script><script defer src="/static/app.js"></script>
+</head><body>
+<div class="world" id="world">
+  <div id="cinematic-view" class="cinematic-view">
+    <picture><source media="(max-width:800px)" srcset="/static/arena-mobile.webp"><img src="/static/arena-plate.webp" id="arena-art" class="arena-art" alt="Four illuminated industrial reactor stations connected to a giant central energy beam" draggable="false"></picture>
+    <div class="energy-veils" aria-hidden="true"></div>
+    <div id="arena-hotspots" class="arena-hotspots" aria-label="Select a reactor station"></div>
+  </div>
+  <canvas id="reactor-canvas" aria-label="Interactive native 3D reactor chamber. Drag to orbit and scroll to zoom."></canvas>
+  <div class="world-shade" aria-hidden="true"></div>
+  <div class="render-warning hidden" id="render-warning">WebGL2 unavailable. Cinematic interactive mode remains playable.</div>
+  <div class="canvas-hint" id="canvas-hint">DRAG TO ORBIT · SCROLL TO ZOOM · TAP A STATION</div>
+</div>
+<header class="masthead"><div class="logo"><span class="logo-symbol">◉</span><span>CONFLUX <b>CORE</b></span></div>
+  <div class="masthead-right"><span class="live-indicator"></span> ONE REACTOR <span class="divider"></span> FOUR MINDS</div>
+</header>
+<main id="landing" class="landing">
+  <section class="landing-story"><div class="eyebrow"><span></span> MULTIPLAYER STABILIZATION PROTOCOL // 001</div>
+    <h1>One reactor.<br><em>Four minds.</em></h1>
+    <p>Four stations. One collapsing energy core. Every rotation shifts a neighbor's ring. Coordinate your crew to stabilize the machine before time runs out.</p>
+    <div class="features"><span>◈ REAL-TIME CO-OP</span><span>◈ 2–4 PLAYERS</span><span>◈ NO LOGIN</span></div>
+  </section>
+  <section class="entry" aria-label="Start game"><div class="entry-heading"><span>◈</span> OPEN A CHAMBER <small>SECURE LINK</small></div>
+    <label for="player-name">YOUR CALLSIGN</label><input id="player-name" maxlength="18" autocomplete="nickname" placeholder="Enter your player name">
+    <button id="create-room" class="primary-btn">CREATE ROOM <span>↗</span></button>
+    <div class="separator"><span></span> OR JOIN A CREW <span></span></div>
+    <div class="join-group"><input id="room-code-input" maxlength="5" placeholder="5-LETTER CODE" aria-label="Room code" autocapitalize="characters"><button id="join-room">JOIN →</button></div>
+    <div class="entry-foot">Browser multiplayer · Invite friends with a room code</div>
+  </section>
+</main>
+<main id="game" class="game hidden">
+ <div class="hud-top" aria-label="Game information">
+  <div class="hud-brand"><span class="brand-mark">◉</span><span>CONFLUX <b>CORE</b></span></div>
+  <div class="hud-tile code-module"><small>ROOM</small><strong id="code-label">—</strong><button id="copy-link" title="Copy invitation" aria-label="Copy room invitation">⧉</button></div>
+  <div class="hud-tile"><small>ROUND</small><strong id="stage-label">— / 03</strong></div>
+  <div class="hud-tile time-tile"><small>TIME</small><strong id="timer-label">--:--</strong></div>
+  <div class="hud-tile score-module"><small>SCORE</small><strong id="score-label">0</strong></div>
+  <div class="hud-tile players-tile"><small>CREW</small><strong id="crew-count">0 / 4</strong></div>
+  <div class="hud-actions"><button id="toggle-comms" title="Crew chat" aria-label="Toggle crew chat"><span>▤</span><i id="unread-dot"></i></button><button id="toggle-view" title="Switch to interactive native 3D renderer" aria-label="Switch graphics view">3D</button><button id="reset-camera" title="Reset 3D camera" aria-label="Reset 3D camera">↺</button></div>
+ </div>
+ <section class="crew-rail" aria-label="Crew"><div class="rail-title">CONNECTED OPERATORS</div><div id="crew-list"></div><div id="lobby-action"></div></section>
+ <section id="station-hud" class="station-hud" aria-label="Your ring controls">
+  <div class="station-header"><div class="station-status-dot"></div><div class="station-header-text"><small>YOUR STATION</small><strong id="station-name">AETHER</strong></div><button id="cycle-station" title="Select another assigned station" aria-label="Switch station">⌄</button></div>
+  <div class="station-symbols"><div><small>CURRENT</small><strong id="station-current">◇</strong></div><span class="station-arrow">→</span><div><small>TARGET</small><strong id="station-target">✳</strong></div></div>
+  <div class="control-kicker">ROTATE RING <span id="station-owner">READY</span></div>
+  <div class="station-actions"><button id="rotate-left" aria-label="Rotate selected ring counterclockwise">−</button><button id="rotate-right" aria-label="Rotate selected ring clockwise">+</button></div>
+  <p id="control-tip" class="control-tip">Your move shifts a neighboring ring.</p>
+  <div id="board" class="sr-only" aria-live="off"></div>
+  <span id="board-subtitle" class="sr-only"></span><span id="sync-label" class="sr-only"></span>
+ </section>
+ <section class="comms collapsed" id="comms" aria-label="Crew chat"><div class="comms-heading"><span>◉ CREW TRANSMISSIONS</span><button id="close-comms" aria-label="Close chat">×</button></div><div class="chat-log" id="chat-log" aria-live="polite"></div><form id="chat-form" class="chat-form"><input id="chat-input" maxlength="180" placeholder="Send a signal to your crew..." aria-label="Message your crew"><button type="submit" aria-label="Send message">➤</button></form></section>
+ <div class="bottom-banner"><div class="signal-icon">◇</div><div class="progress-copy"><strong id="round-message" role="status">INITIALIZING SIGNAL...</strong><small id="message-subtitle">COORDINATE YOUR MOVES TO STABILIZE THE CORE</small></div><div id="progress-bars" class="progress-bars"><span></span><span></span><span></span><span></span></div><button id="leave-room" title="Leave chamber" aria-label="Leave chamber">EXIT ↗</button></div>
+ <div class="demo-ribbon hidden" id="demo-ribbon">DEMO MODE · LOCAL SIMULATION</div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+</body></html>
