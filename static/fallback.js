@@ -3,7 +3,8 @@
 window.createConfluxFallback=function(canvas){
  const ctx=canvas.getContext('2d');if(!ctx)return{setState(){},resetCamera(){},select(){}};
  let state=null,theta=0,viewTheta=0,zoom=1,selected=-1;
- const hues=['#4ce6ff','#ffab3c','#ec78ff','#84a4ff'],pts=[[-5.55,-4.4],[5.55,-4.4],[-5.55,4.4],[5.55,4.4]];
+ // Clockwise station order: Aether (TL), Ember (TR), Pulse (BR), Prism (BL).
+ const hues=['#4ce6ff','#ffab3c','#84a4ff','#ec78ff'],pts=[[-5.55,-4.4],[5.55,-4.4],[5.55,4.4],[-5.55,4.4]];
  const TAU=Math.PI*2;let w=0,h=0,s=1,frame=0;
  function resize(){const dpr=Math.min(devicePixelRatio||1,1.5);w=canvas.clientWidth;h=canvas.clientHeight;let nw=Math.floor(w*dpr),nh=Math.floor(h*dpr);if(canvas.width!==nw||canvas.height!==nh){canvas.width=nw;canvas.height=nh;}ctx.setTransform(dpr,0,0,dpr,0,0);s=Math.min(w/30,h/21)*zoom;}
  function point(x,z,y=0){let a=viewTheta,c=Math.cos(a),sn=Math.sin(a),rx=x*c-z*sn,rz=x*sn+z*c;return [w*.5+rx*s,h*.54+rz*s*.47-y*s*.82,1-rz*.014];}
@@ -31,7 +32,7 @@ window.createConfluxFallback=function(canvas){
  // Target beacon and live marker
  let angle=goal*TAU/6;let tx=cx+Math.cos(angle)*R*.97,ty=cy+Math.sin(angle)*R*.408;
  ellipse(tx,ty,8,5,'#fff2c1',color,3);
- ellipse(cx,cy,R*.26,R*.12,'#0e2635',color,3);ctx.fillStyle=color;ctx.shadowBlur=16;ctx.shadowColor=color;ctx.font=`bold ${Math.max(15,R*.3)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(['✦','◆','⬢','✳','◈','●'][raw],cx,cy+2);ctx.shadowBlur=0;
+ ellipse(cx,cy,R*.26,R*.12,'#0e2635',color,3);ctx.fillStyle=color;ctx.shadowBlur=16;ctx.shadowColor=color;ctx.font=`bold ${Math.max(15,R*.3)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(['✦','◆','⬢','✳','◈','●'][raw],cx,cy+2);if(state?.positions&&raw===goal)arc(cx,cy,R*.36,.42,'#6cffc6',3);ctx.shadowBlur=0;
  if(selected===i)arc(cx,cy,R*1.13,.44,'#f8ffff',2,0,TAU);
  });
  // Central machine, floating nucleus and upper ring gantry.

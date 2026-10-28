@@ -37,7 +37,8 @@ const at={position:gl.getAttribLocation(program,'aPosition'),normal:gl.getAttrib
 const un={MVP:gl.getUniformLocation(program,'uMVP'),model:gl.getUniformLocation(program,'uModel'),color:gl.getUniformLocation(program,'uColor'),emissive:gl.getUniformLocation(program,'uEmissive'),alpha:gl.getUniformLocation(program,'uAlpha'),cam:gl.getUniformLocation(program,'uCam')};
 gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.clearColor(.009,.019,.034,1);
 const PI=Math.PI, TAU=2*PI;
-const palette=['#51e7ff','#ffab3a','#f37bff','#7b9fff'];
+// Station order is clockwise: Aether (TL), Ember (TR), Pulse (BR), Prism (BL).
+const palette=['#51e7ff','#ffab3a','#7b9fff','#f37bff'];
 const hex=s=>{const v=parseInt(s.replace('#',''),16);return [(v>>16&255)/255,(v>>8&255)/255,(v&255)/255]};
 const MAT={obs:'#0a121b',iron:'#182633',iron2:'#243441',iron3:'#394b5a',edge:'#5a6a75',black:'#050a10',silver:'#94a9b6',warm:'#725443'};
 // Matrix helpers: column-major, compatible with WebGL.
@@ -69,7 +70,7 @@ for(let i=0;i<16;i++){const a=i*TAU/16,r=20;let x=Math.sin(a)*r,z=Math.cos(a)*r;
 for(let k=0;k<5;k++)ring(0,9.9+k*.65,0,2.7+k*.23,.28,k%2?'#283f53':'#3d5c70',k%2?'#07233d':'#0e4a7b');
 for(let i=0;i<16;i++){const a=i*TAU/16;let x=Math.cos(a)*12.8,z=Math.sin(a)*12.8;bar([x,-.84,z],[Math.cos(a)*14,-.84,Math.sin(a)*14],.045,.035,'#435766',i%2===0?'#174f60':null)}
 // Conduits and cable systems.
-const stations=[[-5.45,-4.4],[5.45,-4.4],[-5.45,4.45],[5.45,4.45]];
+const stations=[[-5.45,-4.4],[5.45,-4.4],[5.45,4.45],[-5.45,4.45]];
 const reactors=[];
 for(let i=0;i<4;i++){
  const [x,z]=stations[i],color=palette[i];
@@ -93,6 +94,7 @@ for(let i=0;i<4;i++){
  const wedge=add('box',x,.71,z,.12,.14,.35,color,color,1,0,moving);rotor.pointer=wedge;
  // Fixed target beacon (will be moved to target arc position)
  rotor.target=add('cyl',x+2.7,.61,z,.25,.22,.25,'#fff3d9',color,1,0,moving);
+ rotor.halo=ring(x,.95,z,3.25,.9,'#f4ffff','#bdf6ff',moving);rotor.halo.visible=false;
  for(const a of [0,PI/2,PI,1.5*PI]){let sx=Math.cos(a),sz=Math.sin(a);cube(x+sx*3.16,-.16,z+sz*3.16,.33,.3,.52,'#73808b',null,-a)}
  reactors.push(rotor);
 }
@@ -121,7 +123,7 @@ let yaw=0,pitch=.55,distance=27.8,targetYaw=0,targetPitch=.55,targetDist=27.8;
 let viewportW=0,viewportH=0,vp=ident(),cam=[0,15,23],lastT=0,active=false,sceneSolved=false,reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches,selected=-1;
 function resize(){const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight);const dpr=Math.min(window.devicePixelRatio||1,1.6);const w=Math.floor(width*dpr),h=Math.floor(height*dpr);if(w!==canvas.width||h!==canvas.height){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}viewportW=width;viewportH=height}
 function project(p){const x=p[0],y=p[1],z=p[2];const w=vp[3]*x+vp[7]*y+vp[11]*z+vp[15];return {x:((vp[0]*x+vp[4]*y+vp[8]*z+vp[12])/w*.5+.5)*viewportW,y:(.5-(vp[1]*x+vp[5]*y+vp[9]*z+vp[13])/w*.5)*viewportH,visible:w>0}}
-function draw(item){let mesh=geom[item.kind];if(!mesh)return;const m=model(item.x,item.y,item.z,item.sx,item.sy,item.sz,item.ry),mvp=mul(vp,m);gl.uniformMatrix4fv(un.MVP,false,mvp);gl.uniformMatrix4fv(un.model,false,m);gl.uniform3fv(un.color,item.color);gl.uniform3fv(un.emissive,item.emissive);gl.uniform1f(un.alpha,item.alpha);gl.bindVertexArray(mesh.vao);gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0)}
+function draw(item){let mesh=geom[item.kind];if(!mesh||item.visible===false)return;const m=model(item.x,item.y,item.z,item.sx,item.sy,item.sz,item.ry),mvp=mul(vp,m);gl.uniformMatrix4fv(un.MVP,false,mvp);gl.uniformMatrix4fv(un.model,false,m);gl.uniform3fv(un.color,item.color);gl.uniform3fv(un.emissive,item.emissive);gl.uniform1f(un.alpha,item.alpha);gl.bindVertexArray(mesh.vao);gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0)}
 function updateRotor(r,t){const smooth=reducedMotion?1:.11;r.angle+=(r.desired-r.angle)*smooth;
 for(let j=0;j<r.entries.length;j++){let e=r.entries[j],a=e.angle+r.angle;const x=r.x+Math.cos(a)*e.radius,z=r.z+Math.sin(a)*e.radius;
 if(!r.vanes)r.vanes=[];
@@ -129,6 +131,7 @@ if(!r.vanes[j]){r.vanes[j]=add('box',x,e.y,z,e.type==='spoke'?.23:.18,.08,e.type
 const v=r.vanes[j];v.x=x;v.z=z;v.ry=-a;}
 r.pointer.x=r.x+Math.cos(r.angle)*.95;r.pointer.z=r.z+Math.sin(r.angle)*.95;r.pointer.ry=-r.angle;
 r.glyph.y=.69+Math.sin(t*1.4+r.index)*.015;
+r.halo.visible=selected===r.index;r.halo.y=.95+Math.sin(t*3)*.05;
 }
 function render(timestamp){const t=timestamp/1000,dt=Math.min(.1,t-lastT||.016);lastT=t;if(document.hidden||!document.body.classList.contains('native-mode')){requestAnimationFrame(render);return;}resize();
 yaw+=(targetYaw-yaw)*.09;pitch+=(targetPitch-pitch)*.12;distance+=(targetDist-distance)*.12;
@@ -140,7 +143,7 @@ for(const r of reactors)updateRotor(r,t);
 for(const o of objects)draw(o);for(const o of moving)draw(o);
 if(pointProgram){gl.useProgram(pointProgram);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.depthMask(false);gl.uniformMatrix4fv(gl.getUniformLocation(pointProgram,'uVP'),false,vp);gl.uniform1f(gl.getUniformLocation(pointProgram,'uTime'),t);gl.bindVertexArray(pointVAO);gl.drawArrays(gl.POINTS,0,pointCount);gl.depthMask(true);gl.disable(gl.BLEND)}
 requestAnimationFrame(render)}
-function setState(data){active=data?.phase==='playing'&&!data.paused;sceneSolved=data?.phase==='intermission'&&data?.result==='solved';if(data?.positions){reactors.forEach((r,i)=>{const pos=data.positions[i];if(!r.ready){r.logical=pos;r.angle=r.desired=(pos*TAU/6);r.ready=true}else if(pos!==r.logical){let d=(pos-r.logical+6)%6;if(d>3)d-=6;r.desired+=d*TAU/6;r.logical=pos}const targetIndex=data.target?.[i]??0,a=targetIndex*TAU/6;r.target.x=r.x+2.68*Math.cos(a);r.target.z=r.z+2.68*Math.sin(a);r.target.color=hex(r.color);r.target.emissive=hex('#fff6d3');});}}
+function setState(data){active=data?.phase==='playing'&&!data.paused;sceneSolved=data?.phase==='intermission'&&data?.result==='solved';if(data?.positions){reactors.forEach((r,i)=>{const pos=data.positions[i];if(!r.ready){r.logical=pos;r.angle=r.desired=(pos*TAU/6);r.ready=true}else if(pos!==r.logical){let d=(pos-r.logical+6)%6;if(d>3)d-=6;r.desired+=d*TAU/6;r.logical=pos}const targetIndex=data.target?.[i]??0,a=targetIndex*TAU/6;r.target.x=r.x+2.68*Math.cos(a);r.target.z=r.z+2.68*Math.sin(a);const aligned=pos===targetIndex;r.target.color=hex(aligned?'#6cffc6':r.color);r.target.emissive=hex(aligned?'#2cff9c':'#fff6d3');r.glyph.emissive=hex(aligned?'#3dffb0':r.color);});}}
 let dragging=false,pointer=null,moved=false;
 canvas.addEventListener('pointerdown',e=>{dragging=true;moved=false;pointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId)});
 canvas.addEventListener('pointermove',e=>{if(!dragging||!pointer)return;const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;pointer={x:e.clientX,y:e.clientY};if(Math.abs(dx)+Math.abs(dy)>1)moved=true;targetYaw+=dx*.006;targetPitch=Math.max(.27,Math.min(1.32,targetPitch+dy*.0048));});

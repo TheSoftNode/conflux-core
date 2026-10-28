@@ -1,62 +1,100 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#040b13"><meta name="description" content="CONFLUX CORE — One reactor. Four minds. Play a real-time cooperative sci-fi puzzle with friends.">
+<meta name="theme-color" content="#040b13">
+<meta name="description" content="CONFLUX CORE — One reactor. Four minds. A real-time cooperative sci-fi puzzle for 1–4 players in your browser. No login, no install.">
+<meta property="og:title" content="CONFLUX CORE — One Reactor. Four Minds.">
+<meta property="og:description" content="Co-op browser puzzle: every turn you make shifts a teammate's ring. Share a room code and stabilize the reactor together.">
+<meta property="og:image" content="/static/cover.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <title>CONFLUX CORE | One Reactor. Four Minds.</title>
-<link rel="stylesheet" href="/static/style.css">
-<script defer src="/static/fallback.js"></script><script defer src="/static/scene.js"></script><script defer src="/static/app.js"></script>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{VERSION}}">
+<script defer src="/static/logic.js?v={{VERSION}}"></script><script defer src="/static/fallback.js?v={{VERSION}}"></script><script defer src="/static/scene.js?v={{VERSION}}"></script><script defer src="/static/app.js?v={{VERSION}}"></script>
 </head><body>
 <div class="world" id="world">
   <div id="cinematic-view" class="cinematic-view">
     <picture><source media="(max-width:800px)" srcset="/static/arena-mobile.webp"><img src="/static/arena-plate.webp" id="arena-art" class="arena-art" alt="Four illuminated industrial reactor stations connected to a giant central energy beam" draggable="false"></picture>
     <div class="energy-veils" aria-hidden="true"></div>
-    <div id="arena-hotspots" class="arena-hotspots" aria-label="Select a reactor station"></div>
+    <div id="arena-hotspots" class="arena-hotspots" role="group" aria-label="Reactor stations"></div>
   </div>
   <canvas id="reactor-canvas" aria-label="Interactive native 3D reactor chamber. Drag to orbit and scroll to zoom."></canvas>
   <div class="world-shade" aria-hidden="true"></div>
-  <div class="render-warning hidden" id="render-warning">WebGL2 unavailable. Cinematic interactive mode remains playable.</div>
   <div class="canvas-hint" id="canvas-hint">DRAG TO ORBIT · SCROLL TO ZOOM · TAP A STATION</div>
 </div>
 <header class="masthead"><div class="logo"><span class="logo-symbol">◉</span><span>CONFLUX <b>CORE</b></span></div>
   <div class="masthead-right"><span class="live-indicator"></span> ONE REACTOR <span class="divider"></span> FOUR MINDS</div>
 </header>
 <main id="landing" class="landing">
-  <section class="landing-story"><div class="eyebrow"><span></span> MULTIPLAYER STABILIZATION PROTOCOL // 001</div>
+  <section class="landing-story"><div class="eyebrow"><span></span> CO-OP STABILIZATION PROTOCOL // 001</div>
     <h1>One reactor.<br><em>Four minds.</em></h1>
-    <p>Four stations. One collapsing energy core. Every rotation shifts a neighbor's ring. Coordinate your crew to stabilize the machine before time runs out.</p>
-    <div class="features"><span>◈ REAL-TIME CO-OP</span><span>◈ 2–4 PLAYERS</span><span>◈ NO LOGIN</span></div>
+    <p>Four linked stations ring a collapsing energy core. Every turn you make pushes the next station the other way — so your crew has to plan together. Align all four symbols before time runs out.</p>
+    <div class="features"><span>◈ REAL-TIME CO-OP</span><span>◈ 1–4 PLAYERS + AI CREW</span><span>◈ NO LOGIN · NO INSTALL</span></div>
+    <button class="text-btn" id="open-help-landing" type="button">◇ HOW TO PLAY (30 SECONDS)</button>
   </section>
-  <section class="entry" aria-label="Start game"><div class="entry-heading"><span>◈</span> OPEN A CHAMBER <small>SECURE LINK</small></div>
-    <label for="player-name">YOUR CALLSIGN</label><input id="player-name" maxlength="18" autocomplete="nickname" placeholder="Enter your player name">
-    <button id="create-room" class="primary-btn">CREATE ROOM <span>↗</span></button>
+  <section class="entry" aria-label="Start game"><div class="entry-heading"><span>◈</span> OPEN A CHAMBER</div>
+    <label for="player-name">YOUR CALLSIGN</label><input id="player-name" maxlength="18" autocomplete="nickname" placeholder="Enter your player name" enterkeyhint="go">
+    <button id="create-room" class="primary-btn" type="button">CREATE ROOM <span>↗</span></button>
+    <button id="quick-play" class="secondary-btn" type="button">QUICK PLAY · YOU + AI CREW <span>▶</span></button>
     <div class="separator"><span></span> OR JOIN A CREW <span></span></div>
-    <div class="join-group"><input id="room-code-input" maxlength="5" placeholder="5-LETTER CODE" aria-label="Room code" autocapitalize="characters"><button id="join-room">JOIN →</button></div>
-    <div class="entry-foot">Browser multiplayer · Invite friends with a room code</div>
+    <div class="join-group"><input id="room-code-input" maxlength="5" placeholder="5-LETTER CODE" aria-label="Room code" autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="join"><button id="join-room" type="button">JOIN →</button></div>
+    <div class="entry-foot">Share the code or invite link · works on phones and laptops</div>
   </section>
 </main>
 <main id="game" class="game hidden">
  <div class="hud-top" aria-label="Game information">
   <div class="hud-brand"><span class="brand-mark">◉</span><span>CONFLUX <b>CORE</b></span></div>
-  <div class="hud-tile code-module"><small>ROOM</small><strong id="code-label">—</strong><button id="copy-link" title="Copy invitation" aria-label="Copy room invitation">⧉</button></div>
+  <div class="hud-tile code-module"><small>ROOM</small><strong id="code-label">—</strong><button id="copy-link" type="button" title="Copy invitation link" aria-label="Copy room invitation link">⧉</button></div>
   <div class="hud-tile"><small>ROUND</small><strong id="stage-label">— / 03</strong></div>
-  <div class="hud-tile time-tile"><small>TIME</small><strong id="timer-label">--:--</strong></div>
+  <div class="hud-tile time-tile"><small>TIME</small><strong id="timer-label">--:--</strong><i class="timer-bar" id="timer-bar"></i></div>
   <div class="hud-tile score-module"><small>SCORE</small><strong id="score-label">0</strong></div>
   <div class="hud-tile players-tile"><small>CREW</small><strong id="crew-count">0 / 4</strong></div>
-  <div class="hud-actions"><button id="toggle-comms" title="Crew chat" aria-label="Toggle crew chat"><span>▤</span><i id="unread-dot"></i></button><button id="toggle-view" title="Switch to interactive native 3D renderer" aria-label="Switch graphics view">3D</button><button id="reset-camera" title="Reset 3D camera" aria-label="Reset 3D camera">↺</button></div>
+  <div class="hud-actions"><button id="toggle-comms" type="button" title="Crew chat (C)" aria-label="Toggle crew chat" aria-expanded="false"><span>▤</span><i id="unread-dot"></i></button><button id="open-help" type="button" title="How to play (?)" aria-label="How to play">?</button><button id="toggle-sound" type="button" title="Sound on/off (M)" aria-label="Toggle sound" aria-pressed="true">♪</button><button id="toggle-view" type="button" title="Switch to interactive native 3D renderer" aria-label="Switch graphics view">3D</button><button id="reset-camera" type="button" title="Reset 3D camera" aria-label="Reset 3D camera">↺</button></div>
  </div>
- <section class="crew-rail" aria-label="Crew"><div class="rail-title">CONNECTED OPERATORS</div><div id="crew-list"></div><div id="lobby-action"></div></section>
+ <section class="crew-rail" aria-label="Crew"><div class="rail-title">CONNECTED OPERATORS</div><div id="crew-list"></div></section>
  <section id="station-hud" class="station-hud" aria-label="Your ring controls">
-  <div class="station-header"><div class="station-status-dot"></div><div class="station-header-text"><small>YOUR STATION</small><strong id="station-name">AETHER</strong></div><button id="cycle-station" title="Select another assigned station" aria-label="Switch station">⌄</button></div>
+  <div class="station-header"><div class="station-status-dot"></div><div class="station-header-text"><small id="station-kicker">YOUR STATION</small><strong id="station-name">AETHER</strong></div><button id="cycle-station" type="button" title="Next station you control (↑/↓)" aria-label="Switch to your next station">⇄</button></div>
   <div class="station-symbols"><div><small>CURRENT</small><strong id="station-current">◇</strong></div><span class="station-arrow">→</span><div><small>TARGET</small><strong id="station-target">✳</strong></div></div>
   <div class="control-kicker">ROTATE RING <span id="station-owner">READY</span></div>
-  <div class="station-actions"><button id="rotate-left" aria-label="Rotate selected ring counterclockwise">−</button><button id="rotate-right" aria-label="Rotate selected ring clockwise">+</button></div>
+  <div class="station-actions"><button id="rotate-left" type="button" aria-label="Rotate selected ring backward">−</button><button id="rotate-right" type="button" aria-label="Rotate selected ring forward">+</button></div>
   <p id="control-tip" class="control-tip">Your move shifts a neighboring ring.</p>
-  <div id="board" class="sr-only" aria-live="off"></div>
-  <span id="board-subtitle" class="sr-only"></span><span id="sync-label" class="sr-only"></span>
+  <div class="station-meta"><span>MOVES <b id="moves-label">0</b> · PAR <b id="par-label">–</b></span><button id="hint-button" type="button" title="Reveal one optimal move (H)">HINT −75</button></div>
  </section>
- <section class="comms collapsed" id="comms" aria-label="Crew chat"><div class="comms-heading"><span>◉ CREW TRANSMISSIONS</span><button id="close-comms" aria-label="Close chat">×</button></div><div class="chat-log" id="chat-log" aria-live="polite"></div><form id="chat-form" class="chat-form"><input id="chat-input" maxlength="180" placeholder="Send a signal to your crew..." aria-label="Message your crew"><button type="submit" aria-label="Send message">➤</button></form></section>
- <div class="bottom-banner"><div class="signal-icon">◇</div><div class="progress-copy"><strong id="round-message" role="status">INITIALIZING SIGNAL...</strong><small id="message-subtitle">COORDINATE YOUR MOVES TO STABILIZE THE CORE</small></div><div id="progress-bars" class="progress-bars"><span></span><span></span><span></span><span></span></div><button id="leave-room" title="Leave chamber" aria-label="Leave chamber">EXIT ↗</button></div>
- <div class="demo-ribbon hidden" id="demo-ribbon">DEMO MODE · LOCAL SIMULATION</div>
+ <section class="comms collapsed" id="comms" aria-label="Crew chat"><div class="comms-heading"><span>◉ CREW TRANSMISSIONS</span><button id="close-comms" type="button" aria-label="Close chat">×</button></div><div class="chat-log" id="chat-log" aria-live="polite"></div><form id="chat-form" class="chat-form"><input id="chat-input" maxlength="180" placeholder="Send a signal to your crew..." aria-label="Message your crew" autocomplete="off"><button type="submit" aria-label="Send message">➤</button></form></section>
+ <div class="bottom-banner"><div class="progress-copy"><strong id="round-message" role="status" aria-live="polite">INITIALIZING SIGNAL...</strong><small id="message-subtitle">COORDINATE YOUR MOVES TO STABILIZE THE CORE</small></div><div id="ring-chips" class="ring-chips" role="group" aria-label="All four rings: current and target"></div><button id="leave-room" type="button" title="Leave chamber" aria-label="Leave chamber">EXIT ↗</button></div>
+ <section id="lobby-panel" class="panel lobby-panel hidden" aria-label="Lobby">
+  <div class="panel-kicker">CHAMBER READY</div>
+  <div class="lobby-code-row"><div><small>ROOM CODE</small><strong id="lobby-code">—</strong></div><button id="lobby-copy" type="button" class="ghost-btn">COPY INVITE LINK</button><button id="lobby-share" type="button" class="ghost-btn hidden">SHARE</button></div>
+  <p class="lobby-explain">Send the code or link to friends — they join from any browser. Or add AI crewmates and play now.</p>
+  <div id="lobby-crew" class="lobby-crew"></div>
+  <div id="lobby-actions" class="lobby-actions"></div>
+  <p id="lobby-note" class="lobby-note"></p>
+ </section>
+ <section id="result-panel" class="panel result-panel hidden" aria-live="polite" aria-label="Round result">
+  <div class="panel-kicker" id="result-kicker">ROUND COMPLETE</div>
+  <h2 id="result-title">CORE STABILIZED</h2>
+  <div id="result-body" class="result-body"></div>
+  <div id="result-actions" class="result-actions"></div>
+ </section>
+ <div class="net-status hidden" id="net-status" role="status"><span class="spinner"></span><span id="net-text">RECONNECTING…</span><button id="net-retry" type="button" class="hidden">RETRY</button></div>
+ <div class="demo-ribbon hidden" id="demo-ribbon">OFFLINE PRACTICE · LOCAL SIMULATION</div>
 </main>
-<div class="toast" id="toast" role="status"></div>
+<section id="help-panel" class="help-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+ <div class="help-card">
+  <button class="help-close" id="close-help" type="button" aria-label="Close how to play">×</button>
+  <div class="panel-kicker">STABILIZATION BRIEFING</div>
+  <h2 id="help-title">How to play</h2>
+  <ol class="help-steps">
+   <li><b>Goal:</b> turn every station until its <em>current</em> symbol matches its <em>target</em>. All four aligned = core stable.</li>
+   <li><b>The twist:</b> turning a station <b>+</b> also turns the <b>next station clockwise −</b> (and vice versa).
+    <div class="help-demo" aria-hidden="true"><span class="hd c0">AETHER<b>+1</b></span><span class="hd-arrow">⟶</span><span class="hd c1">EMBER<b>−1</b></span><span class="hd-arrow">⟶</span><span class="hd c2">PULSE</span><span class="hd-arrow">⟶</span><span class="hd c3">PRISM</span><span class="hd-loop">↺ back to AETHER</span></div></li>
+   <li><b>Teamwork:</b> each player controls only their own stations. Talk in chat, plan the order, and don't undo your teammate's work.</li>
+   <li><b>Score:</b> finish fast and near <b>par</b> (the fewest possible moves). Hints help but cost 75 points. Three rounds, each harder and shorter.</li>
+  </ol>
+  <div class="help-keys"><span><kbd>1</kbd>–<kbd>4</kbd> select</span><span><kbd>←</kbd><kbd>→</kbd> rotate</span><span><kbd>H</kbd> hint</span><span><kbd>C</kbd> chat</span><span><kbd>M</kbd> sound</span></div>
+  <button class="primary-btn" id="help-ok" type="button">GOT IT <span>↗</span></button>
+ </div>
+</section>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body></html>

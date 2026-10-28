@@ -1,24 +1,41 @@
-"""Create a single-file interactive solo practice using the same assets as live game.
+"""Create a single-file offline practice build from the same client source as the live game.
 
-Run: python scripts/build_demo.py [optional-output-path]
-Does not emulate multiplayer: server.py must be hosted separately for that.
+Run: python scripts/build_demo.py [output-path]
+The result never contacts a server: it always starts solo practice (window.CONFLUX_OFFLINE).
 """
 from pathlib import Path
 import base64
+import re
 import sys
-root=Path(__file__).resolve().parents[1]
-static=root/'static'
-html=(static/'index.html').read_text(encoding='utf-8')
-html=html.replace('<link rel="stylesheet" href="/static/style.css">',f'<style>\n{(static/"style.css").read_text(encoding="utf-8")}\n</style>')
-for asset in ('arena-plate.webp','arena-mobile.webp'):
-    encoded=base64.b64encode((static/asset).read_bytes()).decode('ascii')
-    html=html.replace(f'/static/{asset}',f'data:image/webp;base64,{encoded}')
-html=html.replace('<script defer src="/static/fallback.js"></script><script defer src="/static/scene.js"></script><script defer src="/static/app.js"></script>','')
-# Standalone preview is ALWAYS offline practice, including when hosted by a file-preview server.
-# Do not let the bundled create-room button contact a server that is not part of this file.
-js='\n'.join((static/file).read_text(encoding='utf-8') for file in ['fallback.js','scene.js','app.js'])
-js=js.replace("if(new URLSearchParams(location.search).get('demo')==='1'){", "if(true){")
-html=html.replace('</body></html>',f'<script>\n{js}\n</script></body></html>')
-output=Path(sys.argv[1]) if len(sys.argv)>1 else root.parent/'CONFLUX_CORE_COMPACT_PLAYABLE_DEMO.html'
-output.write_text(html,encoding='utf-8')
-print(f'{output} ({output.stat().st_size:,} bytes)')
+
+root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(root))
+from server import VERSION  # noqa: E402
+
+static = root / 'static'
+SCRIPTS = ('logic.js', 'fallback.js', 'scene.js', 'app.js')
+
+
+def data_url(name: str, mime: str) -> str:
+    return f'data:{mime};base64,{base64.b64encode((static / name).read_bytes()).decode("ascii")}'
+
+
+def build() -> str:
+    html = (static / 'index.html').read_text(encoding='utf-8').replace('{{VERSION}}', VERSION)
+    css = (static / 'style.css').read_text(encoding='utf-8')
+    html = html.replace(f'<link rel="stylesheet" href="/static/style.css?v={VERSION}">', f'<style>\n{css}\n</style>')
+    for asset in ('arena-plate.webp', 'arena-mobile.webp'):
+        html = html.replace(f'/static/{asset}', data_url(asset, 'image/webp'))
+    html = html.replace('href="/static/favicon.svg"', f'href="{data_url("favicon.svg", "image/svg+xml")}"')
+    html = re.sub(r'<meta property="og:image"[^>]*>', '', html)
+    html = re.sub(r'<script defer src="/static/[a-z]+\.js\?v=[^"]+"></script>', '', html)
+    js = '\n'.join((static / name).read_text(encoding='utf-8') for name in SCRIPTS)
+    bundle = f'<script>\nwindow.CONFLUX_OFFLINE = true;\n{js}\n</script>'
+    assert '</body></html>' in html and '/static/' not in html.replace('/static/cover.png', ''), 'unbundled asset'
+    return html.replace('</body></html>', f'{bundle}</body></html>')
+
+
+if __name__ == '__main__':
+    output = Path(sys.argv[1]) if len(sys.argv) > 1 else root.parent / 'CONFLUX_CORE_OFFLINE_PRACTICE.html'
+    output.write_text(build(), encoding='utf-8')
+    print(f'{output} ({output.stat().st_size:,} bytes)')
