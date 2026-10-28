@@ -176,6 +176,9 @@ def test_mobile_layout_fits_and_is_playable(make_player):
         hot = p.page.locator(f".ring-hotspot[data-dial='{i}']").bounding_box()
         cx, cy = hot["x"] + hot["width"] / 2, hot["y"] + hot["height"] / 2
         assert 0 < cx < 390 and 0 < cy < 844
+    banner = p.page.locator(".bottom-banner").bounding_box()
+    hud = p.page.locator("#station-hud").bounding_box()
+    assert banner["y"] + banner["height"] <= hud["y"] + 1, "ring banner overlaps the control panel"
     mine = next(i for i in range(4) if s["owners"][i] == s["you"])
     p.page.tap(f".ring-hotspot[data-dial='{mine}']")
     p.page.tap("#rotate-right")
@@ -188,6 +191,16 @@ def test_native_3d_view_toggles_without_errors(make_player):
     p.wait("s.phase === 'playing'")
     p.page.click("#toggle-view")
     assert p.page.evaluate("document.body.classList.contains('native-mode')")
+    renderer = p.page.evaluate("""() => {
+        const g = document.createElement('canvas').getContext('webgl2');
+        const e = g && g.getExtension('WEBGL_debug_renderer_info');
+        return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : '';
+    }""")
+    software = any(k in renderer.lower() for k in ("swiftshader", "llvmpipe", "software"))
+    assert p.page.evaluate("window.ConfluxScene.mode") == ("fallback" if software or not renderer else "webgl")
+    fps = p.page.evaluate("""() => new Promise(done => { let n = 0; const t0 = performance.now();
+        const f = t => (++n < 30 ? requestAnimationFrame(f) : done(30000 / (t - t0))); requestAnimationFrame(f); })""")
+    assert fps > 20, f"3D/2D view too slow on this machine: {fps:.1f} fps"
     p.page.wait_for_timeout(1200)
     assert p.page.is_visible("#reset-camera")
     p.page.click("#reset-camera")
@@ -206,3 +219,60 @@ def test_offline_practice_file_plays_a_round(make_player, tmp_path):
         p.move(dial, direction)
     s = p.wait("s.phase === 'intermission'")
     assert s["result"] == "solved" and s["score"] > 0
+
+
+def test_3d_view_recovers_from_webgl_context_loss(make_player):
+    """Browsers can drop GPU contexts; the 3D view must rebuild instead of going blank."""
+    p = make_player()
+    p.ctx.add_init_script("localStorage.setItem('conflux-force-webgl','1')")  # exercise WebGL even on software GPUs
+    p.create("Nova", quick=True)
+    p.wait("s.phase === 'playing'")
+    assert p.page.evaluate("window.ConfluxScene.mode") == "webgl"
+    p.page.click("#toggle-view")
+    p.page.wait_for_timeout(500)
+    lost = p.page.evaluate("""() => {
+        const gl = document.getElementById('reactor-canvas').getContext('webgl2');
+        if (!gl) return 'no-webgl';
+        gl.getExtension('WEBGL_lose_context').loseContext();
+        return 'lost';
+    }""")
+    if lost == "no-webgl":
+        pytest.skip("WebGL2 unavailable in this browser")
+    p.page.wait_for_timeout(800)
+    status = p.page.evaluate("""() => {
+        const c = document.getElementById('reactor-canvas');
+        const gl = c.getContext('webgl2');
+        return {live: !!gl && !gl.isContextLost(), count: document.querySelectorAll('#reactor-canvas').length};
+    }""")
+    assert status == {"live": True, "count": 1}
+    s = p.state()
+    mine = next(i for i in range(4) if s["owners"][i] == s["you"])
+    p.move(mine, 1)
+    p.wait("s.moves >= 1 || s.phase !== 'playing'")
+
+
+LAYOUT_PROBE = """() => {
+  const box = s => document.querySelector(s).getBoundingClientRect();
+  const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+  const offscreen = [...document.querySelectorAll('#station-hud button, .ring-chip, .hud-actions button, #leave-room, .hud-tile')]
+    .filter(e => getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden')
+    .filter(e => { const r = e.getBoundingClientRect(); return r.right > innerWidth + 1 || r.bottom > innerHeight + 1 || r.left < -1 || r.top < -1; })
+    .map(e => e.id || e.className);
+  return {
+    scrollWidth: document.documentElement.scrollWidth,
+    bannerOverHud: overlap(box('#station-hud'), box('.bottom-banner')),
+    topOverHud: overlap(box('.hud-top'), box('#station-hud')),
+    offscreen,
+  };
+}"""
+
+
+@pytest.mark.parametrize("width,height", [(350, 700), (375, 667), (390, 844), (430, 932), (768, 1024),
+                                          (1024, 768), (1280, 720), (1440, 900), (1920, 1080)])
+def test_layout_has_no_overlap_or_offscreen_controls(make_player, width, height):
+    p = make_player(viewport={"width": width, "height": height}, touch=width < 800)
+    p.create("Nova", quick=True)
+    p.wait("s.phase === 'playing'")
+    p.page.wait_for_timeout(300)
+    r = p.page.evaluate(LAYOUT_PROBE)
+    assert r == {"scrollWidth": width, "bannerOverHud": False, "topOverHud": False, "offscreen": []}, r

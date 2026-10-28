@@ -335,3 +335,40 @@ def test_every_chat_message_bumps_revision_so_clients_rerender():
     before = room.revision
     room.handle(a, {"type": "chat", "message": "hello"}, 1000.0)
     assert room.revision > before
+
+
+def test_outbox_conflates_snapshots_and_never_blocks_the_caller():
+    """A slow client must not stall the ticker; it receives only the newest snapshot."""
+    import asyncio
+
+    class SlowSocket:
+        def __init__(self):
+            self.sent, self.release = [], asyncio.Event()
+
+        async def send_json(self, payload):
+            await self.release.wait()
+            self.sent.append(payload)
+
+        async def close(self, code=1000):
+            pass
+
+    async def scenario():
+        ws = SlowSocket()
+        box = server.Outbox(ws)
+        box.state({"n": 1})
+        await asyncio.sleep(0)  # writer is now blocked sending n=1
+        for n in range(2, 50):
+            box.state({"n": n})  # returns immediately despite the stalled socket
+        box.message({"type": "pong"})
+        ws.release.set()
+        await asyncio.sleep(0.05)
+        box.stop()
+        return ws.sent
+
+    import threading
+    result = {}
+    worker = threading.Thread(target=lambda: result.setdefault("sent", asyncio.run(scenario())))
+    worker.start()  # own thread: other test modules may leave an event loop running here
+    worker.join()
+    sent = result["sent"]
+    assert sent == [{"n": 1}, {"type": "pong"}, {"n": 49}]

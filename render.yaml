@@ -2,7 +2,13 @@ services:
   - type: web
     name: conflux-core-game
     runtime: python
+    # "free" sleeps after ~15 idle minutes (30-60 s cold start for the next visitor).
+    # Switch to a paid always-on plan such as "starter" while judging is open.
     plan: free
+    numInstances: 1
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1 --ws-max-size 65536 --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8

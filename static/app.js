@@ -388,6 +388,7 @@ function positionHotspots() {
   });
 }
 window.addEventListener('resize', positionHotspots);
+if (window.ResizeObserver) new ResizeObserver(() => document.documentElement.style.setProperty('--hud-h', `${$('station-hud').offsetHeight}px`)).observe($('station-hud'));
 function pulseHotspot(i, linked = false) {
   const el = $('arena-hotspots').querySelector(`[data-dial="${i}"]`); if (!el) return;
   const cls = linked ? 'pulse-linked' : 'pulse';
@@ -564,7 +565,7 @@ function startDemo() {
   const you = 'practice-you';
   app.demo = { clock: null, endAt: 0, nextAt: 0, lastHint: 0, state: {
     type: 'state', protocol: 2, code: 'SOLO', phase: 'lobby', you, session: null, host: you, revision: 0,
-    players: [{ id: you, name: (store.get('localStorage', 'conflux-name') || 'YOU').slice(0, 18), online: true, bot: false, is_host: true }],
+    players: [{ id: you, name: (store.get('localStorage', 'conflux-name') || 'Pilot').slice(0, 18), online: true, bot: false, is_host: true }],
     max_players: 1, owners: [you, you, you, you], stations: L.STATIONS, symbols: L.SYMBOLS, target: null, positions: null,
     stage: 0, stages: 3, seconds: 0, duration: 0, paused: false, score: 0, last_score: 0, moves: 0, par: 0, hints: 0,
     hint_penalty: L.HINT_PENALTY, result: '', history: [], last_action: null,

@@ -51,6 +51,7 @@ CREATE_WINDOW = 60.0
 BOT_NAMES = ("VEGA", "LYRA", "ORION")
 BOT_DELAY = (1.5, 2.6)
 TICK_SECONDS = 0.25
+SEND_TIMEOUT = 10.0
 BROADCAST_EVERY = 0.5
 CLOSE_FATAL = 4000
 CLOSE_REPLACED = 4001
@@ -72,12 +73,51 @@ def clean_name(value: Any) -> str:
     return clean_text(re.sub(r"[<>]", "", str(value or "")), 18) or "Player"
 
 
+class Outbox:
+    """Per-connection writer. Snapshots are conflated (only the newest is sent), so a slow
+    client never delays the ticker or other players; one-off messages are queued in order."""
+
+    def __init__(self, ws: WebSocket):
+        self.ws = ws
+        self.latest: dict[str, Any] | None = None
+        self.queue: deque[dict[str, Any]] = deque()
+        self.wake = asyncio.Event()
+        self.task = asyncio.create_task(self._run())
+
+    def state(self, payload: dict[str, Any]) -> None:
+        self.latest = payload
+        self.wake.set()
+
+    def message(self, payload: dict[str, Any]) -> None:
+        self.queue.append(payload)
+        self.wake.set()
+
+    async def _run(self) -> None:
+        try:
+            while True:
+                await self.wake.wait()
+                self.wake.clear()
+                while self.queue:
+                    await asyncio.wait_for(self.ws.send_json(self.queue.popleft()), SEND_TIMEOUT)
+                if self.latest is not None:
+                    payload, self.latest = self.latest, None
+                    await asyncio.wait_for(self.ws.send_json(payload), SEND_TIMEOUT)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # dead or too slow: closing ends the receive loop, which cleans up
+            await _close(self.ws, 1011)
+
+    def stop(self) -> None:
+        self.task.cancel()
+
+
 @dataclass
 class Player:
     token: str
     name: str
     id: str = field(default_factory=lambda: secrets.token_hex(8))
     ws: WebSocket | None = None
+    outbox: Outbox | None = None
     bot: bool = False
     offline_since: float = 0.0
     allowance: float = MOVE_BURST
@@ -446,10 +486,12 @@ async def _send(ws: WebSocket, payload: dict[str, Any]) -> None:
         pass
 
 
-async def broadcast(room: Room) -> None:
+def broadcast(room: Room) -> None:
+    """Queue a fresh snapshot for every connected player (never blocks)."""
     room.last_broadcast = time.monotonic()
-    targets = [(p.ws, room.snapshot(p.token)) for p in room.players.values() if p.ws is not None]
-    await asyncio.gather(*(_send(ws, snap) for ws, snap in targets))
+    for p in room.players.values():
+        if p.ws is not None and p.outbox is not None:
+            p.outbox.state(room.snapshot(p.token))
 
 
 async def tick_all(now: float) -> None:
@@ -466,7 +508,7 @@ async def tick_all(now: float) -> None:
                 timed = room.phase in ("playing", "intermission") and not room.paused
                 emit = changed or (timed and now - room.last_broadcast >= BROADCAST_EVERY)
             if emit:
-                await broadcast(room)
+                broadcast(room)
         except Exception:
             log.exception("Ticker failed for room %s", code)
 
@@ -614,6 +656,7 @@ async def room_socket(ws: WebSocket, code: str):
         return
 
     token: str | None = None
+    outbox: Outbox | None = None
     try:
         try:
             msg = await asyncio.wait_for(read_message(ws), timeout=JOIN_TIMEOUT)
@@ -628,6 +671,7 @@ async def room_socket(ws: WebSocket, code: str):
         requested = requested[:64] if isinstance(requested, str) else ""
         error = None
         replaced: WebSocket | None = None
+        outbox = Outbox(ws)
         async with room.lock:
             now = time.monotonic()
             before = room.owners()
@@ -635,12 +679,15 @@ async def room_socket(ws: WebSocket, code: str):
             if existing is not None and not existing.bot:
                 token = requested
                 replaced, existing.ws = existing.ws, ws
+                if existing.outbox:
+                    existing.outbox.stop()
+                existing.outbox = outbox
                 existing.offline_since = 0.0
                 room.log(f"{existing.name} reconnected.")
             else:
                 error = room.seat_for_newcomer(now)
                 if error is None:
-                    player = Player(token=secrets.token_urlsafe(24), name=name, ws=ws)
+                    player = Player(token=secrets.token_urlsafe(24), name=name, ws=ws, outbox=outbox)
                     token = player.token
                     room.players[token] = player
                     room.ever_joined = True
@@ -650,20 +697,21 @@ async def room_socket(ws: WebSocket, code: str):
                 room.ensure_host()
                 room.membership_changed(now, before)
         if error:
+            outbox.stop()
             await reject(ws, error, CLOSE_FATAL)
             return
         if replaced is not None:
             await _send(replaced, {"type": "error", "fatal": True,
                                    "message": "This crew seat was opened in another tab."})
             await _close(replaced, CLOSE_REPLACED)
-        await broadcast(room)
+        broadcast(room)
 
         while True:
             msg = await read_message(ws)
             if msg is None:
                 continue
             if msg.get("type") == "ping":
-                await _send(ws, {"type": "pong"})
+                outbox.message({"type": "pong"})
                 continue
             async with room.lock:
                 player = room.players.get(token)
@@ -673,10 +721,11 @@ async def room_socket(ws: WebSocket, code: str):
                 if emit:
                     room.updated = time.monotonic()
             if error:
-                await _send(ws, {"type": "error", "message": error})
+                outbox.message({"type": "error", "message": error})
             if emit:
-                await broadcast(room)
+                broadcast(room)
             if left:
+                outbox.stop()
                 await _close(ws, 1000)
                 return
     except WebSocketDisconnect:
@@ -688,6 +737,8 @@ async def room_socket(ws: WebSocket, code: str):
         log.exception("Unexpected socket error in room %s", room.code)
         await _close(ws, 1011)
     finally:
+        if outbox is not None:
+            outbox.stop()
         changed = False
         async with room.lock:
             player = room.players.get(token or "")
@@ -695,10 +746,13 @@ async def room_socket(ws: WebSocket, code: str):
                 now = time.monotonic()
                 before = room.owners()
                 player.ws = None
+                if player.outbox:
+                    player.outbox.stop()
+                    player.outbox = None
                 player.offline_since = now
                 room.log(f"{player.name} disconnected.")
                 room.ensure_host()
                 room.membership_changed(now, before)
                 changed = True
         if changed:
-            await broadcast(room)
+            broadcast(room)

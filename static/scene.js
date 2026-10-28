@@ -3,9 +3,39 @@
    Multiplayer authority remains on the FastAPI server. */
 (() => {
 'use strict';
-const canvas = document.getElementById('reactor-canvas');
+// The facade survives renderer rebuilds: browsers may drop a WebGL context at any time
+// (GPU reset, backgrounded mobile tab), so a lost context gets a fresh canvas and scene.
+let impl=null,latestState=null,latestSelected=-1,generation=0,rebuilds=0,mode='none';
+window.ConfluxScene={
+ get mode(){return mode},
+ setState(s){latestState=s;impl?.setState(s)},
+ select(i){latestSelected=i;impl?.select(i)},
+ resetCamera(){impl?.resetCamera()},
+};
+function liveCanvas(){return document.getElementById('reactor-canvas')}
+function useFallback(canvas,reason){
+ generation++;canvas=liveCanvas()||canvas;
+ const fresh=canvas.cloneNode(false);canvas.replaceWith(fresh);canvas=fresh;  // a canvas that held WebGL cannot give a 2D context
+ document.getElementById('canvas-hint').textContent='COMPATIBILITY MODE • '+reason+' — USE THE RING CONTROLS';
+ impl=window.createConfluxFallback?.(canvas)||null;mode=impl?'fallback':'none';
+ if(latestState)impl?.setState(latestState);if(latestSelected>=0)impl?.select(latestSelected);
+}
+function rebuild(){
+ const current=liveCanvas();if(!current)return;
+ if(++rebuilds>3){useFallback(current,'3D RENDERER UNSTABLE');return;}
+ const fresh=current.cloneNode(false);current.replaceWith(fresh);
+ boot(fresh);
+}
+function boot(canvas){
+const myGeneration=++generation;
 const gl = canvas.getContext('webgl2',{antialias:true,alpha:false,powerPreference:'high-performance'});
-if (!gl) { document.getElementById('canvas-hint').textContent='COMPATIBILITY MODE • WEBGL2 UNAVAILABLE — USE THE RING CONTROLS'; window.ConfluxScene=window.createConfluxFallback?.(canvas)||{setState:()=>{},resetCamera:()=>{},select:()=>{}};return; }
+if (!gl) { useFallback(canvas,'WEBGL2 UNAVAILABLE');return; }
+// Software rasterisers (no GPU / blocklisted driver) take seconds per frame and freeze the page.
+const debugInfo=gl.getExtension('WEBGL_debug_renderer_info');
+const rendererName=debugInfo?String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)):'';
+let forceWebGL=false;try{forceWebGL=localStorage.getItem('conflux-force-webgl')==='1'}catch{}
+if(/swiftshader|llvmpipe|softpipe|software|basic render/i.test(rendererName)&&!forceWebGL){console.info('No GPU acceleration ('+rendererName+'); using the 2D renderer.');document.documentElement.classList.add('low-power');useFallback(canvas,'NO GPU ACCELERATION');return;}
+canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();if(myGeneration!==generation||!canvas.isConnected)return;console.warn('WebGL context lost; rebuilding the 3D scene.');generation++;setTimeout(rebuild,60)},{once:true});
 const VS = `#version 300 es
 precision highp float;
 in vec3 aPosition;in vec3 aNormal;
@@ -31,7 +61,7 @@ outColor=vec4(color,uAlpha);
 }`;
 const compile=(source,type)=>{const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader};
 let program;
-try {program=gl.createProgram();gl.attachShader(program,compile(VS,gl.VERTEX_SHADER));gl.attachShader(program,compile(FS,gl.FRAGMENT_SHADER));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));}catch(e){console.error('WebGL shader initialization failed; activating compatibility mode.',e);window.ConfluxScene=window.createConfluxFallback?.(canvas)||{setState:()=>{},resetCamera:()=>{},select:()=>{}};return;}
+try {program=gl.createProgram();gl.attachShader(program,compile(VS,gl.VERTEX_SHADER));gl.attachShader(program,compile(FS,gl.FRAGMENT_SHADER));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));}catch(e){if(gl.isContextLost())return;/* the context-lost handler owns recovery */console.warn('WebGL shader initialization failed; activating compatibility mode.',e);useFallback(canvas,'3D SHADERS UNSUPPORTED');return;}
 gl.useProgram(program);
 const at={position:gl.getAttribLocation(program,'aPosition'),normal:gl.getAttribLocation(program,'aNormal')};
 const un={MVP:gl.getUniformLocation(program,'uMVP'),model:gl.getUniformLocation(program,'uModel'),color:gl.getUniformLocation(program,'uColor'),emissive:gl.getUniformLocation(program,'uEmissive'),alpha:gl.getUniformLocation(program,'uAlpha'),cam:gl.getUniformLocation(program,'uCam')};
@@ -121,7 +151,7 @@ try {pointProgram=gl.createProgram();gl.attachShader(pointProgram,compile(PVS,gl
 // Animation/camera, World <-> screen projection for pointer picking.
 let yaw=0,pitch=.55,distance=27.8,targetYaw=0,targetPitch=.55,targetDist=27.8;
 let viewportW=0,viewportH=0,vp=ident(),cam=[0,15,23],lastT=0,active=false,sceneSolved=false,reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches,selected=-1;
-function resize(){const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight);const dpr=Math.min(window.devicePixelRatio||1,1.6);const w=Math.floor(width*dpr),h=Math.floor(height*dpr);if(w!==canvas.width||h!==canvas.height){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}viewportW=width;viewportH=height}
+function resize(){const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight);const dpr=Math.min(window.devicePixelRatio||1,1.5);const w=Math.floor(width*dpr),h=Math.floor(height*dpr);if(w!==canvas.width||h!==canvas.height){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}viewportW=width;viewportH=height}
 function project(p){const x=p[0],y=p[1],z=p[2];const w=vp[3]*x+vp[7]*y+vp[11]*z+vp[15];return {x:((vp[0]*x+vp[4]*y+vp[8]*z+vp[12])/w*.5+.5)*viewportW,y:(.5-(vp[1]*x+vp[5]*y+vp[9]*z+vp[13])/w*.5)*viewportH,visible:w>0}}
 function draw(item){let mesh=geom[item.kind];if(!mesh||item.visible===false)return;const m=model(item.x,item.y,item.z,item.sx,item.sy,item.sz,item.ry),mvp=mul(vp,m);gl.uniformMatrix4fv(un.MVP,false,mvp);gl.uniformMatrix4fv(un.model,false,m);gl.uniform3fv(un.color,item.color);gl.uniform3fv(un.emissive,item.emissive);gl.uniform1f(un.alpha,item.alpha);gl.bindVertexArray(mesh.vao);gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0)}
 function updateRotor(r,t){const smooth=reducedMotion?1:.11;r.angle+=(r.desired-r.angle)*smooth;
@@ -133,7 +163,7 @@ r.pointer.x=r.x+Math.cos(r.angle)*.95;r.pointer.z=r.z+Math.sin(r.angle)*.95;r.po
 r.glyph.y=.69+Math.sin(t*1.4+r.index)*.015;
 r.halo.visible=selected===r.index;r.halo.y=.95+Math.sin(t*3)*.05;
 }
-function render(timestamp){const t=timestamp/1000,dt=Math.min(.1,t-lastT||.016);lastT=t;if(document.hidden||!document.body.classList.contains('native-mode')){requestAnimationFrame(render);return;}resize();
+function render(timestamp){if(myGeneration!==generation||gl.isContextLost())return;const t=timestamp/1000,dt=Math.min(.1,t-lastT||.016);lastT=t;if(document.hidden||!document.body.classList.contains('native-mode')){requestAnimationFrame(render);return;}resize();
 yaw+=(targetYaw-yaw)*.09;pitch+=(targetPitch-pitch)*.12;distance+=(targetDist-distance)*.12;
 const cp=Math.cos(pitch);cam=[Math.sin(yaw)*cp*distance,Math.sin(pitch)*distance+1.5,Math.cos(yaw)*cp*distance];let view=lookAt(cam,[0,.6,0]);let proj=perspective(51*PI/180,viewportW/viewportH,.2,180);vp=mul(proj,view);
 gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniform3fv(un.cam,cam);gl.disable(gl.BLEND);
@@ -150,6 +180,9 @@ canvas.addEventListener('pointermove',e=>{if(!dragging||!pointer)return;const dx
 canvas.addEventListener('pointerup',e=>{if(!dragging)return;dragging=false;if(!moved){let best=-1,bd=Infinity;for(let i=0;i<4;i++){let r=reactors[i],p=project([r.x,1,r.z]);let d=Math.hypot(p.x-e.clientX,p.y-e.clientY);if(d<bd){bd=d;best=i}}if(best>=0&&bd<130){selected=best;window.dispatchEvent(new CustomEvent('conflux-select',{detail:{dial:best}}));}}});
 canvas.addEventListener('wheel',e=>{e.preventDefault();targetDist=Math.min(43,Math.max(18,targetDist+e.deltaY*.025))},{passive:false});
 function select(i){selected=i;}function resetCamera(){targetYaw=0;targetPitch=.55;targetDist=27.8}
-window.ConfluxScene={setState,resetCamera,select,palette};
+impl={setState,resetCamera,select};mode='webgl';
+if(latestState)setState(latestState);if(latestSelected>=0)select(latestSelected);
 requestAnimationFrame(render);
+}
+boot(document.getElementById('reactor-canvas'));
 })();

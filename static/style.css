@@ -222,3 +222,22 @@ body[data-phase=lobby] .station-hud,body[data-phase=lobby] .crew-rail{display:no
 .ring-hotspot:hover .ring-label,.ring-hotspot.selected .ring-label,.ring-hotspot.linked .ring-label{opacity:.95}
 @media (min-width:801px){.crew-rail{width:200px}}
 @media (max-width:800px){#hint-button{min-height:34px;padding:6px 12px}.station-actions button{min-height:44px}}
+.join-group button{white-space:nowrap}
+@media (max-width:800px){.lobby-code-row>div{flex:1 1 100%}.lobby-code-row .ghost-btn{flex:1}}
+@media (max-width:800px){.bottom-banner{bottom:166px}}
+/* Mobile: banner sits just above the control panel, whatever height that panel has. */
+@media (max-width:800px){
+ .bottom-banner{bottom:calc(var(--hud-h,150px) + 14px)}
+ body[data-phase=lobby] .bottom-banner{bottom:10px}
+ .hud-brand{flex:0 0 auto;min-width:0;max-width:none;padding:0 8px}
+ .hud-brand>span:not(.brand-mark){display:none}
+ .brand-mark{display:inline-grid!important;margin:0;font-size:20px}
+ .hud-top{right:6px}
+ .hud-top .hud-tile{flex:1 1 0}
+ .hud-actions button{width:30px;min-width:30px}
+}
+@media (max-width:380px){.hud-actions button{width:26px;min-width:26px}.hud-top .hud-tile{padding:3px 4px}}
+/* GPU-less devices (detected in scene.js): drop costly compositing effects, keep all gameplay visuals. */
+.low-power *,.low-power *:before,.low-power *:after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.low-power .ring-hotspot .orbit-outline,.low-power .core-surge,.low-power .spinner{animation:none!important}
+.low-power .arena-art{filter:none}
