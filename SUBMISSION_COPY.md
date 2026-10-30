@@ -4,7 +4,7 @@
 
 **Cover image:** `static/cover.png` (original key art; it isn't a gameplay capture, and real screenshots are in `docs/screenshots/`)
 
-**Project URL:** `https://<your-deployed-host>` ← add after deployment and verification
+**Project URL:** https://conflux-core.onrender.com
 
 **Description:**
 
@@ -20,7 +20,7 @@
 
 ## Before you press submit
 
-- [ ] Deployed URL passes `python scripts/check_multiplayer.py https://<host>`
+- [x] Deployed URL passes `python scripts/check_multiplayer.py https://conflux-core.onrender.com`
 - [ ] Played a full run with someone on a different network (laptop + phone on mobile data)
 - [ ] Tried it on a real phone
 - [ ] Hosting won't sleep during judging (always-on plan or uptime pings)
