@@ -30,7 +30,7 @@ The image runs as a non-root user, has a `HEALTHCHECK`, and starts one worker. `
 ## Verify a deployment (do this every time)
 
 ```bash
-curl https://<host>/health                          # {"ok":true,"version":"4.0.0",...}
+curl https://<host>/health                          # {"ok":true,"version":"4.0.1",...}
 python scripts/check_multiplayer.py https://<host>  # must end: ALL CHECKS PASSED
 ```
 

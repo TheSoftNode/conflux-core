@@ -96,5 +96,15 @@
   <button class="primary-btn" id="help-ok" type="button">GOT IT <span>↗</span></button>
  </div>
 </section>
+<section id="confirm-panel" class="help-overlay confirm-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+ <div class="confirm-card" id="confirm-card">
+  <div class="confirm-icon" id="confirm-icon" aria-hidden="true">⚠</div>
+  <div class="panel-kicker" id="confirm-kicker">ABORT SEQUENCE</div>
+  <h2 id="confirm-title">Leave this run?</h2>
+  <p id="confirm-text"></p>
+  <input id="confirm-field" class="confirm-field hidden" readonly aria-label="Text to copy">
+  <div class="confirm-actions"><button class="ghost-btn" id="confirm-cancel" type="button">STAY</button><button class="danger-btn" id="confirm-ok" type="button">LEAVE</button></div>
+ </div>
+</section>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body></html>

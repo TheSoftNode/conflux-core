@@ -7,7 +7,7 @@ A real-time cooperative puzzle for **1–4 players in the browser**. No login, n
 - **Three rounds**, each harder and shorter (90/80/70 s, optimal solutions of 2–3, 4–5, then 6 moves). Score = speed + efficiency vs **par**; hints cost points.
 - Works on phones and laptops: Chrome, Firefox and Safari/WebKit verified.
 
-Version **4.0.0** · Python 3.10+ · FastAPI + WebSockets · plain HTML/CSS/JS (no CDN, no build step).
+Version **4.0.1** · Python 3.10+ · FastAPI + WebSockets · plain HTML/CSS/JS (no CDN, no build step).
 
 ## Run it locally
 

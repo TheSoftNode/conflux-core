@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.1 — 2026-10-30
+- Leaving mid-run now asks with a styled in-game dialog instead of the browser's native popup. The dialog is context-aware: it names the stations you hand over and who receives them. It supports Esc to stay and keeps keyboard focus inside the dialog.
+- The copy-link and copy-result fallbacks use the same in-game dialog. No native browser popups remain.
+
 ## 4.0.0 — 2026-10-29
 
 ### Fixed (bugs in the supplied build)

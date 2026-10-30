@@ -85,6 +85,7 @@ function resetSession() {
   Object.assign(app, { state: null, roomCode: '', lastRevision: -1, selected: -1, manualSelect: false, lastActionKey: '', quickPlay: false, retry: 0, unread: 0, resultHiddenFor: '' });
 }
 function leave(message) {
+  dialogDone?.(false);
   app.leaving = true;
   if (app.socket?.readyState === WebSocket.OPEN && !message) { try { app.socket.send(JSON.stringify({ type: 'leave' })); } catch { /* closing anyway */ } }
   try { sessionStorage.removeItem(`conflux-token-${app.roomCode}`); } catch { /* storage blocked */ }
@@ -453,16 +454,48 @@ function toggleChat(force) {
 }
 function openHelp() { $('help-panel').classList.remove('hidden'); setTimeout(() => $('help-ok').focus(), 30); }
 function closeHelp() { $('help-panel').classList.add('hidden'); store.set('localStorage', 'conflux-help-seen', '1'); }
+/* In-game dialog (replaces the browser's confirm/prompt). Resolves true for OK, false for cancel. */
+let dialogDone = null;
+function ask({ kicker = 'CONFIRM', title, text = '', ok = 'OK', cancel = 'CANCEL', tone = 'danger', icon = '⚠', field = null }) {
+  if (dialogDone) dialogDone(false);
+  const card = $('confirm-card');
+  $('confirm-kicker').textContent = kicker; $('confirm-title').textContent = title; $('confirm-text').textContent = text;
+  $('confirm-icon').textContent = icon; card.dataset.tone = tone;
+  $('confirm-ok').textContent = ok; $('confirm-ok').className = tone === 'danger' ? 'danger-btn' : 'primary-btn';
+  $('confirm-cancel').textContent = cancel || ''; $('confirm-cancel').classList.toggle('hidden', !cancel);
+  $('confirm-field').classList.toggle('hidden', field === null); $('confirm-field').value = field ?? '';
+  const opener = document.activeElement;
+  $('confirm-panel').classList.remove('hidden');
+  setTimeout(() => { if (field !== null) { $('confirm-field').focus(); $('confirm-field').select(); } else (cancel ? $('confirm-cancel') : $('confirm-ok')).focus(); }, 30);
+  return new Promise(resolve => {
+    dialogDone = answer => { dialogDone = null; $('confirm-panel').classList.add('hidden'); opener?.focus?.(); resolve(answer); };
+  });
+}
+$('confirm-ok').addEventListener('click', () => dialogDone?.(true));
+$('confirm-cancel').addEventListener('click', () => dialogDone?.(false));
+$('confirm-panel').addEventListener('click', e => { if (e.target === $('confirm-panel')) dialogDone?.(false); });
+function confirmLeave() {
+  const s = S();
+  if (!s || s.phase === 'lobby' || s.phase === 'finished') { leave(); return; }
+  const mine = ownedDials().map(i => NAMES[i]);
+  const humans = s.players.filter(p => p.online && !p.bot && p.id !== s.you);
+  const text = humans.length
+    ? `Your station${mine.length === 1 ? '' : 's'} (${mine.join(', ')}) will pass to ${humans.map(p => p.name).join(' & ')}. You can rejoin with room code ${s.code} while the run continues.`
+    : app.demo ? 'This practice run will end and its score will be lost.'
+    : 'You are the only human aboard. Without you the clock pauses and this run will be abandoned.';
+  ask({ kicker: 'ABORT SEQUENCE', title: 'Leave this run?', text, ok: 'LEAVE RUN', cancel: 'STAY', tone: 'danger', icon: '⚠' })
+    .then(yes => { if (yes) leave(); });
+}
 async function copyInvite() {
   const url = invite(app.state?.code || app.roomCode);
   try { await navigator.clipboard.writeText(url); toast('Invite link copied — send it to your crew.'); }
-  catch { window.prompt('Copy the room invitation:', url); }
+  catch { ask({ kicker: 'INVITE YOUR CREW', title: 'Copy this link', text: 'Your browser blocked automatic copying. Select the link below and copy it.', field: url, ok: 'DONE', cancel: '', tone: 'info', icon: '⧉' }); }
 }
 async function shareResult() {
   const s = S(); if (!s) return;
   const lines = s.history.map(h => `R${h.stage} ${h.result === 'solved' ? `✓ ${h.moves}/${h.par} moves` : '✕'} +${h.points}`);
   const text = `CONFLUX CORE — our crew scored ${s.score.toLocaleString()} points!\n${lines.join('\n')}\nPlay with us: ${app.demo ? location.href : location.origin}`;
-  try { await navigator.clipboard.writeText(text); toast('Result copied to clipboard.'); } catch { window.prompt('Copy your result:', text); }
+  try { await navigator.clipboard.writeText(text); toast('Result copied to clipboard.'); } catch { ask({ kicker: 'SHARE YOUR RUN', title: 'Copy your result', text: 'Select the text below and copy it.', field: text.replace(/\n/g, ' · '), ok: 'DONE', cancel: '', tone: 'info', icon: '★' }); }
 }
 
 $('create-room').addEventListener('click', () => createRoom(false));
@@ -482,7 +515,7 @@ if (navigator.share) {
   $('lobby-share').classList.remove('hidden');
   $('lobby-share').addEventListener('click', () => navigator.share({ title: 'CONFLUX CORE', text: `Join my reactor crew — room ${app.state?.code}`, url: invite(app.state?.code || app.roomCode) }).catch(() => {}));
 }
-$('leave-room').addEventListener('click', () => { if (!S() || S().phase === 'lobby' || S().phase === 'finished' || window.confirm('Leave this run? Your stations will pass to your crew.')) leave(); });
+$('leave-room').addEventListener('click', confirmLeave);
 $('net-retry').addEventListener('click', () => { app.retry = 0; setNet('RECONNECTING…'); openSocket(); });
 $('toggle-sound').addEventListener('click', () => { const on = Sound.toggle(); $('toggle-sound').classList.toggle('muted', !on); $('toggle-sound').setAttribute('aria-pressed', String(on)); toast(on ? 'Sound on' : 'Sound off', 1200); });
 $('toggle-sound').classList.toggle('muted', !Sound.on);
@@ -518,6 +551,15 @@ window.addEventListener('conflux-select', e => selectDial(e.detail.dial));
 window.addEventListener('online', reconnectNow);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) reconnectNow(); });
 document.addEventListener('keydown', e => {
+  if (dialogDone) {
+    if (e.key === 'Escape') { e.preventDefault(); dialogDone(false); }
+    else if (e.key === 'Tab') {  // keep focus inside the dialog
+      const items = ['confirm-field', 'confirm-cancel', 'confirm-ok'].map($).filter(el => !el.classList.contains('hidden'));
+      const at = items.indexOf(document.activeElement);
+      e.preventDefault(); items[(at + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus();
+    }
+    return;
+  }
   if (!$('help-panel').classList.contains('hidden')) { if (e.key === 'Escape') closeHelp(); return; }
   if ($('game').classList.contains('hidden') || e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = document.activeElement?.tagName;

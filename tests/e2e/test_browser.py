@@ -276,3 +276,28 @@ def test_layout_has_no_overlap_or_offscreen_controls(make_player, width, height)
     p.page.wait_for_timeout(300)
     r = p.page.evaluate(LAYOUT_PROBE)
     assert r == {"scrollWidth": width, "bannerOverHud": False, "topOverHud": False, "offscreen": []}, r
+
+
+def test_leave_mid_run_uses_in_game_dialog(make_player):
+    """Leaving mid-run asks with a styled dialog (never a native browser popup)."""
+    host, guest = make_player(), make_player()
+    code = host.create("Nova")["code"]
+    guest.join(code, "Orion")
+    host.wait("s.players.length === 2")
+    host.page.click("#start-button")
+    guest.wait("s.phase === 'playing'")
+    native = []
+    guest.page.on("dialog", lambda d: (native.append(d.message), d.dismiss()))
+    guest.page.click("#leave-room")
+    guest.page.wait_for_selector("#confirm-panel:not(.hidden)")
+    assert "Nova" in guest.page.inner_text("#confirm-text")
+    guest.page.keyboard.press("Escape")  # Esc = stay
+    assert guest.page.is_hidden("#confirm-panel") and guest.page.is_visible("#game")
+    guest.page.click("#leave-room")
+    guest.page.click("#confirm-cancel")
+    assert guest.page.is_visible("#game")
+    guest.page.click("#leave-room")
+    guest.page.click("#confirm-ok")
+    guest.page.wait_for_selector("#landing:not(.hidden)")
+    host.wait("s.players.length === 1")
+    assert native == []

@@ -7,7 +7,7 @@ Messages are JSON text frames. The server is authoritative; client messages are 
 | Method | Path | Response |
 |---|---|---|
 | GET | `/` | Game client (HTML, `Cache-Control: no-cache`, assets versioned `?v=`) |
-| GET | `/health` | `{"ok":true,"version":"4.0.0","rooms":N,"players_online":N}` |
+| GET | `/health` | `{"ok":true,"version":"4.0.1","rooms":N,"players_online":N}` |
 | POST | `/api/rooms` | `{"code":"ABCDE"}` · `429` if this IP created too many rooms · `503` at capacity |
 | GET | `/static/*`, `/favicon.ico` | Assets |
 
@@ -39,7 +39,7 @@ Unknown or malformed messages are ignored. Messages over 2 KB or binary frames c
 
 ```json
 {
-  "type": "state", "protocol": 2, "version": "4.0.0", "code": "ABCDE",
+  "type": "state", "protocol": 2, "version": "4.0.1", "code": "ABCDE",
   "phase": "lobby|playing|intermission|finished",
   "you": "public id", "session": "your private rejoin token", "host": "public id",
   "revision": 42,

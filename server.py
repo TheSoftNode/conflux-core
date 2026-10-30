@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from game_logic import (N_DIALS, N_STAGES, STAGE_SECONDS, STATIONS, SYMBOLS, HINT_PENALTY,
                         Puzzle, round_points)
 
-VERSION = "4.0.0"
+VERSION = "4.0.1"
 PROTOCOL = 2
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ROOM_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

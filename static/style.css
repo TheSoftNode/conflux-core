@@ -241,3 +241,21 @@ body[data-phase=lobby] .station-hud,body[data-phase=lobby] .crew-rail{display:no
 .low-power *,.low-power *:before,.low-power *:after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .low-power .ring-hotspot .orbit-outline,.low-power .core-surge,.low-power .spinner{animation:none!important}
 .low-power .arena-art{filter:none}
+/* In-game confirm dialog */
+.confirm-overlay{z-index:250;animation:fade-in .18s ease-out}
+@keyframes fade-in{from{opacity:0}}
+.confirm-card{--tone:#ff6a77;position:relative;width:min(420px,100%);padding:26px 26px 22px;border-radius:16px;text-align:center;background:linear-gradient(180deg,rgba(10,22,36,.98),rgba(3,12,22,.98));border:1px solid color-mix(in srgb,var(--tone) 55%,#1c3646);box-shadow:0 30px 100px #000d,0 0 0 1px #ffffff08 inset,0 0 60px color-mix(in srgb,var(--tone) 18%,transparent);animation:dialog-in .22s cubic-bezier(.2,.9,.3,1.2)}
+.confirm-card[data-tone=info]{--tone:#4ff4f0}
+@keyframes dialog-in{from{opacity:0;transform:translateY(12px) scale(.96)}}
+.confirm-card:before{content:"";position:absolute;inset:0 22% auto;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--tone),transparent)}
+.confirm-icon{width:54px;height:54px;margin:0 auto 12px;display:grid;place-items:center;border-radius:50%;font-size:24px;color:var(--tone);border:1px solid color-mix(in srgb,var(--tone) 60%,transparent);background:radial-gradient(circle,color-mix(in srgb,var(--tone) 22%,transparent),transparent 70%);box-shadow:0 0 24px color-mix(in srgb,var(--tone) 35%,transparent)}
+.confirm-card .panel-kicker{color:var(--tone)}
+.confirm-card h2{margin:6px 0 10px;font-size:26px;letter-spacing:.02em}
+.confirm-card p{margin:0 auto 18px;max-width:340px;font-size:14px;line-height:1.6;color:#b9cfd9}
+.confirm-field{display:block;width:100%;margin:-4px 0 18px;padding:12px;border-radius:8px;border:1px solid #3b6274;background:#091b2b;color:#e7f9ff;font:inherit;font-size:12px}
+.confirm-actions{display:flex;gap:10px}
+.confirm-actions button{flex:1;min-height:46px;font-size:13px;letter-spacing:.12em;font-weight:850}
+.confirm-actions .primary-btn{width:auto;padding:0 14px}
+.danger-btn{border:1px solid #ff7d88;border-radius:8px;background:linear-gradient(135deg,#ff5d6c,#b8263a);color:#fff;box-shadow:0 0 22px #ff4d6040}
+.danger-btn:hover{filter:brightness(1.1)}
+.confirm-actions .ghost-btn:hover{border-color:#65f3f6;color:#fff}
